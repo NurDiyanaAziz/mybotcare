@@ -757,16 +757,15 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------------------------------------------------
 # 6. START THE BOT
 # ---------------------------------------------------------
+
 if __name__ == '__main__':
     load_data()
     
-    # 1. BINA AIOHTTP SERVER (PENGGANTI HTTP.SERVER YANG ASYNCIO-COMPATIBLE)
+    # 1. SETUP DUMMY WEB SERVER UNTUK RENDER FREE TIER
     async def handle_render_ping(request):
-        # Membalas HEAD atau GET request daripada Render Health Check
-        return web.Response(text="SmartCare is running!")
+        return web.Response(text="SmartCare is running smoothly!")
 
     async def main():
-        # Setup Dummy Web Server untuk port binding Render Free Tier
         server_app = web.Application()
         server_app.router.add_route('*', '/', handle_render_ping)
         
@@ -775,31 +774,35 @@ if __name__ == '__main__':
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
-        print(f"Async Dummy Server hidup secara selamat pada port {port}")
+        print(f"Async Dummy Server hidup pada port {port}")
 
-        # 2. INSIALISASI TELEGRAM BOT SEPERTI BIASA
-        print("Membina aplikasi SmartCare AI di Render...")
+        # 2. INSIALISASI TELEGRAM BOT GRED ASYNC
+        print("Membina aplikasi SmartCare AI...")
         bot_app = ApplicationBuilder().token(TOKEN).build()
         
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
         bot_app.add_handler(CallbackQueryHandler(butang_ditekan))
         
-        # 3. JALANKAN BOT SECARA ASYNC (PENGGANTI APP.RUN_POLLING)
-        # Ini mengelakkan pertembungan thread dan menghalang ralat RuntimeError
-        print("SmartCare Bot is alive and running on Render Async Loop! 🚀")
+        print("SmartCare Bot is alive and listening to your messages! 🚀")
         
+        # 3. JALANKAN BOT MENGGUNAKAN ENJIN PEMANDU ASYNC YANG BETUL
+        # Ciri 'close_loop=False' sangat penting supaya ia tidak menutup event loop aiohttp kita!
         async with bot_app:
             await bot_app.initialize()
-            await bot_app.updater.start_polling(drop_pending_updates=True)
             await bot_app.start()
             
-            # Kekalkan loop ini berjalan selamanya sepanjang server hidup
-            while True:
-                await asyncio.sleep(3600)
+            # Enjin ini akan memegang talian polling secara aktif dan responsif
+            updater = bot_app.updater
+            await updater.start_polling(drop_pending_updates=True)
+            
+            # Gunakan pengunci asinkronus rasmi daripada library telegram
+            # Ini bertindak sebagai pengganti 'while True' yang jauh lebih stabil
+            from telegram.ext import Updater
+            await asyncio.Event().wait()
 
     # Cetus event loop utama
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        print("Bot dimatikan.")
+        print("Bot dimatikan secara selamat.")

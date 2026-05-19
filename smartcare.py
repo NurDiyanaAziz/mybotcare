@@ -798,33 +798,3 @@ if __name__ == '__main__':
     # drop_pending_updates=True memastikan bot tidak pening melayan 
     # mesej-mesej lama semasa bot ditutup (sangat penting untuk presentation!)
     app.run_polling(drop_pending_updates=True)
-    load_data()
-    import os
-    
-    if 'PYTHONANYWHERE_DOMAIN' in os.environ:
-        from telegram.request import HTTPXRequest
-        print("Running on Cloud (PythonAnywhere)...")
-        proxy_url = "http://proxy.server:3128"
-        
-        # Kita tingkatkan timeout dan adjust connection pool untuk elakkan 503 Service Unavailable
-        request = HTTPXRequest(
-            proxy=proxy_url, 
-            read_timeout=60, 
-            connect_timeout=60,
-            write_timeout=60,
-            pool_timeout=60
-        )
-        # Sediakan application dengan konfigurasi request yang baru
-        app = ApplicationBuilder().token(TOKEN).request(request).build()
-    else:
-        print("Running on Local Computer...")
-        app = ApplicationBuilder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
-    app.add_handler(CallbackQueryHandler(butang_ditekan))
-    
-    print("SmartCare Bot is alive! Press Ctrl+C to stop.")
-    
-    # Tambah parameter clean=True untuk bersihkan sebarang pending updates di server Telegram
-    app.run_polling(close_loop=False, drop_pending_updates=True)

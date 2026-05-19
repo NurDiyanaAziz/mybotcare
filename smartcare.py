@@ -784,17 +784,33 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     load_data()
     
-    # Render bertindak seperti lokal komputer (Unrestricted Internet)
-    # Jadi kita hanya perlu setup application asas tanpa sebarang proxy_url
-    print("Membina aplikasi SmartCare AI di Cloud...")
+    # 1. TRICK UNTUK RENDER WEB SERVICE (FREE TIER)
+    # Kita buka port palsu di latar belakang supaya Render tidak 'timeout'
+    import threading
+    import http.server
+    import socketserver
+
+    def run_dummy_server():
+        # Ambil port dinamik daripada Render, atau guna 10000 sebagai default
+        port = int(os.environ.get("PORT", 10000))
+        handler = http.server.SimpleHTTPRequestHandler
+        # Elakkan ralat port tersangkut dengan membenarkan guna semula port
+        socketserver.TCPServer.allow_reuse_address = True
+        with socketserver.TCPServer(("", port), handler) as httpd:
+            print(f"Dummy Server hidup pada port {port} untuk kekalkan pelan Free Render.")
+            httpd.serve_forever()
+
+    # Jalankan server palsu ini dalam Thread berasingan supaya tidak mengganggu bot Telegram
+    t = threading.Thread(target=run_dummy_server, daemon=True)
+    t.start()
+
+    # 2. SEPERTI BIASA, JALANKAN BOT TELEGRAM ANDA
+    print("Membina aplikasi SmartCare AI di Render Web Service...")
     app = ApplicationBuilder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
     app.add_handler(CallbackQueryHandler(butang_ditekan))
     
-    print("SmartCare Bot is alive and running on Render! 🚀")
-    
-    # drop_pending_updates=True memastikan bot tidak pening melayan 
-    # mesej-mesej lama semasa bot ditutup (sangat penting untuk presentation!)
+    print("SmartCare Bot is alive and running on Render Free Tier! 🚀")
     app.run_polling(drop_pending_updates=True)

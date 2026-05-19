@@ -760,33 +760,46 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     load_data()
     
-    # 1. TRICK UNTUK RENDER WEB SERVICE (FREE TIER)
-    # Kita buka port palsu di latar belakang supaya Render tidak 'timeout'
-    import threading
-    import http.server
-    import socketserver
+    # 1. BINA AIOHTTP SERVER (PENGGANTI HTTP.SERVER YANG ASYNCIO-COMPATIBLE)
+    async def handle_render_ping(request):
+        # Membalas HEAD atau GET request daripada Render Health Check
+        return web.Response(text="SmartCare is running!")
 
-    def run_dummy_server():
-        # Ambil port dinamik daripada Render, atau guna 10000 sebagai default
+    async def main():
+        # Setup Dummy Web Server untuk port binding Render Free Tier
+        server_app = web.Application()
+        server_app.router.add_route('*', '/', handle_render_ping)
+        
         port = int(os.environ.get("PORT", 10000))
-        handler = http.server.SimpleHTTPRequestHandler
-        # Elakkan ralat port tersangkut dengan membenarkan guna semula port
-        socketserver.TCPServer.allow_reuse_address = True
-        with socketserver.TCPServer(("", port), handler) as httpd:
-            print(f"Dummy Server hidup pada port {port} untuk kekalkan pelan Free Render.")
-            httpd.serve_forever()
+        runner = web.AppRunner(server_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        print(f"Async Dummy Server hidup secara selamat pada port {port}")
 
-    # Jalankan server palsu ini dalam Thread berasingan supaya tidak mengganggu bot Telegram
-    t = threading.Thread(target=run_dummy_server, daemon=True)
-    t.start()
+        # 2. INSIALISASI TELEGRAM BOT SEPERTI BIASA
+        print("Membina aplikasi SmartCare AI di Render...")
+        bot_app = ApplicationBuilder().token(TOKEN).build()
+        
+        bot_app.add_handler(CommandHandler("start", start))
+        bot_app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
+        bot_app.add_handler(CallbackQueryHandler(butang_ditekan))
+        
+        # 3. JALANKAN BOT SECARA ASYNC (PENGGANTI APP.RUN_POLLING)
+        # Ini mengelakkan pertembungan thread dan menghalang ralat RuntimeError
+        print("SmartCare Bot is alive and running on Render Async Loop! 🚀")
+        
+        async with bot_app:
+            await bot_app.initialize()
+            await bot_app.updater.start_polling(drop_pending_updates=True)
+            await bot_app.start()
+            
+            # Kekalkan loop ini berjalan selamanya sepanjang server hidup
+            while True:
+                await asyncio.sleep(3600)
 
-    # 2. SEPERTI BIASA, JALANKAN BOT TELEGRAM ANDA
-    print("Membina aplikasi SmartCare AI di Render Web Service...")
-    app = ApplicationBuilder().token(TOKEN).build()
-    
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
-    app.add_handler(CallbackQueryHandler(butang_ditekan))
-    
-    print("SmartCare Bot is alive and running on Render Free Tier! 🚀")
-    app.run_polling(drop_pending_updates=True)
+    # Cetus event loop utama
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        print("Bot dimatikan.")

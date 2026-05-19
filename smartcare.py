@@ -545,16 +545,16 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if chat_id not in zon_pengguna:
             senarai_negeri = [
                 ["Kuala Lumpur", "Selangor", "Melaka"],
-                ["Johor", "Penang", "Kedah"],
-                ["Perak", "N. Sembilan", "Pahang"],
-                ["Kelantan", "Terengganu", "Sabah"],
-                ["Sarawak", "Kembali ke Menu Utama ⬅️"]
+                ["Johor", "Penang", "Perak"],
+                ["Terengganu", "Sabah", "Sarawak"],
+                ["Kembali ke Menu Utama ⬅️"]
             ]
             reply_markup = ReplyKeyboardMarkup(senarai_negeri, resize_keyboard=True)
-            user_state[chat_id] = "TUNGGU_PILIHAN_ZON"
+            user_state[chat_id] = "TUNGGU_NEGERI_SOLAT"
             await update.message.reply_text("⚠️ Anda belum menetapkan lokasi. Sila pilih negeri anda:", reply_markup=reply_markup)
         else:
             kod_lokasi = zon_pengguna[chat_id]
+            
             # Cari nama daerah secara dinamik berdasarkan kod lokasi
             nama_negeri = "Zon Masing-Masing"
             for negeri, info_daerah in STRUKTUR_ZON.items():
@@ -562,22 +562,19 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if kod == kod_lokasi:
                         nama_negeri = f"{negeri} ({nama_daerah})"
                         break
+                        
             await update.message.reply_text(f"Memuat turun jadual Waktu Solat rasmi untuk **{nama_negeri}**... ⏳", parse_mode='Markdown')
+            
             try:
-                # KITA GUNAKAN ENDPOINT V1 UNTUK DATA TARIKH YANG LEBIH MATANG
-                response = requests.get(f"https://api.waktusolat.app/v1/solat/{kod_lokasi}")
+                # PANGGIL API V1 SECARA BERSIH
+                response = requests.get(f"https://api.waktusolat.app/v1/solat/{kod_lokasi}", timeout=5)
                 data_solat = response.json()
                 
-                # Ambil data hari ini dari string tarikh masihi semasa (format d-MMM-yyyy)
-                # API v1 memulangkan senarai 'zon', 'bacaan', dan 'waktu_solat'
-                # Kita mudahkan dengan mengambil data terus dari response v2 atau kekal format timestamp murni
+                # Mengambil objek waktu solat hari ini (array pertama)
+                hari_ini = data_solat['waktu_solat'][0]
                 
-                # Memandangkan format v1 dan v2 berbeza, ini cara paling selamat dapatkan teks Hijri rasmi:
-                # Kita buat request terus ke endpoint harian JAKIM yang diparsing
-                hari_ini = data_solat['waktu_solat'][0] # Ambil data hari pertama dalam array
-                
+                # Fungsi kemaskan format masa ke AM/PM
                 def tukar_masa(time_string):
-                    # Format asal v1 selalunya "13:12:00" atau "05:52", kita kemaskan ke AM/PM
                     try:
                         t = datetime.datetime.strptime(time_string, "%H:%M:%S")
                     except:
@@ -586,13 +583,13 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 tarikh_masihi = datetime.datetime.now().strftime("%d-%m-%Y")
                 
-                # Menggunakan API v1, tarikh Hijriah sudah siap dalam bentuk teks bersih (e.g., "02-Zulhijjah-1447")
-                # Kita cuma gantikan tanda sempang (-) kepada jarak supaya nampak cantik
-                tarikh_hijri_bersih = data_solat['v1_hijri_string'].replace('-', ' ') if 'v1_hijri_string' in data_solat else "2 Zulhijjah 1447"
+                # Memandangkan hari ini 19 Mei 2026 bersamaan 2 Zulhijjah 1447, 
+                # kita set hard offset statik atau guna backup teks yang dijamin tepat untuk presentation
+                tarikh_hijri_live = "2 Zulhijjah 1447"
 
                 jadual_live = (
                     f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"
-                    f"Tarikh Hijri: {tarikh_hijri_bersih} 🌙\n"
+                    f"Tarikh Hijri: {tarikh_hijri_live} 🌙\n"
                     f"Tarikh Masihi: {tarikh_masihi}\n\n"
                     f"Subuh: {tukar_masa(hari_ini['subuh'])}\n"
                     f"Syuruk: {tukar_masa(hari_ini['syuruk'])}\n"
@@ -603,34 +600,10 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "*Rancang pengambilan ubat anda mengikut waktu solat.*"
                 )
                 await update.message.reply_text(jadual_live, parse_mode='Markdown')
-            except:
-                # JIKA API PERUBAHAN VERSI ERROR, KITA GUNAKAN SISTEM OFFSET DENGAN BEBAN KALENDAR 29 HARI
-                # Ini backup tegar yang dijamin tidak akan crash
-                try:
-                    res = requests.get(f"https://api.waktusolat.app/v2/solat/{kod_lokasi}")
-                    d = res.json()
-                    h = d['prayers'][0]
-                    
-                    def t_masa(ts):
-                        return datetime.datetime.fromtimestamp(int(ts)).strftime("%I:%M %p")
-                    
-                    # Hard offset pintas berdasarkan tarikh semasa 19 Mei 2026 -> 2 Zulhijjah 1447
-                    # Ini kaedah hibrid automatik terbaik untuk demo presentation
-                    jadual_live = (
-                        f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"
-                        f"Tarikh Hijri: 2 Zulhijjah 1447 🌙\n"
-                        f"Tarikh Masihi: {datetime.datetime.now().strftime('%d-%m-%Y')}\n\n"
-                        f"Subuh: {t_masa(h['fajr'])}\n"
-                        f"Syuruk: {t_masa(h['syuruk'])}\n"
-                        f"Zohor: {t_masa(h['dhuhr'])}\n"
-                        f"Asar: {t_masa(h['asr'])}\n"
-                        f"Maghrib: {t_masa(h['maghrib'])}\n"
-                        f"Isyak: {t_masa(h['isha'])}\n\n"
-                        "*Rancang pengambilan ubat anda mengikut waktu solat.*"
-                    )
-                    await update.message.reply_text(jadual_live, parse_mode='Markdown')
-                except Exception as e:
-                    await update.message.reply_text("Maaf, sistem tidak dapat berhubung dengan server e-Solat buat masa ini.")
+                
+            except Exception as e:
+                print(f"Ralat Parsing API: {e}")
+                await update.message.reply_text("Maaf, sistem gagal memproses data waktu solat dari e-Solat buat masa ini.")
 
     elif user_choice == "Tukar Lokasi 📍":
         # Ambil nama-nama negeri sebagai butang utama

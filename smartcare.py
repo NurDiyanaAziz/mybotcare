@@ -570,7 +570,11 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     async with session.get(api_url, headers=headers, timeout=10) as response:
                         if response.status == 200:
                             data_solat = await response.json()
-                            hari_ini = data_solat['prayerTime'][0]
+                            
+                            # KIRA INDEKS HARI INI SECARA DINAMIK!
+                            # Jika hari ini 22hb, 22 - 1 = indeks 21
+                            hari_ini_index = datetime.datetime.now().day - 1
+                            hari_ini = data_solat['prayerTime'][hari_ini_index]
                         else:
                             raise Exception(f"Server API e-Solat disekat! Status: {response.status}")
                 
@@ -625,6 +629,8 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(jadual_live, parse_mode='Markdown')
                 
             except Exception as e:
+                print(f"Ralat Panggilan API: {e}")
+                await update.message.reply_text(f"⚠️ Gagal mendapatkan data *live* waktu solat.\nPunca sebenar: `{e}`", parse_mode='Markdown')
                 print(f"Ralat Panggilan API: {e}")
                 await update.message.reply_text(f"⚠️ Gagal mendapatkan data *live* waktu solat.\nPunca sebenar: `{e}`", parse_mode='Markdown')
                 print(f"Ralat Panggilan API: {e}")

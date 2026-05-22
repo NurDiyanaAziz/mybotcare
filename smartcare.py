@@ -562,9 +562,9 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Memuat turun jadual Waktu Solat rasmi untuk **{nama_negeri}**... ⏳", parse_mode='Markdown')
             
             try:
-                # Guna URL Bypass Cloudflare (Tanpa /v1/ yang tersilap sebelum ini)
+                # Guna URL Bypass Cloudflare
                 api_url = f"https://api.waktusolat.app/solat/{kod_lokasi}"
-                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                headers = {'User-Agent': 'Mozilla/5.0'}
                 
                 async with aiohttp.ClientSession() as session:
                     async with session.get(api_url, headers=headers, timeout=10) as response:
@@ -574,12 +574,16 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         else:
                             raise Exception(f"Server API e-Solat disekat! Status: {response.status}")
                 
-                # Fungsi kemaskan format masa ke AM/PM
+                # Fungsi kemaskan format masa ke AM/PM (Kalis ralat)
                 def tukar_masa(time_string):
+                    if not time_string: return "--:--"
                     try:
-                        t = datetime.datetime.strptime(time_string, "%H:%M:%S")
-                    except:
-                        t = datetime.datetime.strptime(time_string, "%H:%M")
+                        t = datetime.datetime.strptime(str(time_string), "%H:%M:%S")
+                    except ValueError:
+                        try:
+                            t = datetime.datetime.strptime(str(time_string), "%H:%M")
+                        except:
+                            return str(time_string)
                     return t.strftime("%I:%M %p")
 
                 # Format Tarikh Masihi
@@ -594,22 +598,35 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except:
                     tarikh_hijri_live = hijri_raw
 
+                # Tarik data Subuh untuk kira Imsak
+                waktu_subuh_raw = hari_ini.get('fajr', '05:30:00')
+                
+                # KIRA IMSAK MANUAL (Tolak 10 minit dari Subuh - Standard JAKIM)
+                try:
+                    fmt = "%H:%M:%S" if waktu_subuh_raw.count(":") == 2 else "%H:%M"
+                    t_subuh = datetime.datetime.strptime(waktu_subuh_raw, fmt)
+                    imsak_str = (t_subuh - datetime.timedelta(minutes=10)).strftime("%I:%M %p")
+                except:
+                    imsak_str = "--:--"
+
                 jadual_live = (
                     f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"
                     f"Tarikh Hijri: {tarikh_hijri_live} 🌙\n"
                     f"Tarikh Masihi: {tarikh_masihi_live}\n\n"
-                    f"Imsak: {tukar_masa(hari_ini['imsak'])}\n"
-                    f"Subuh: {tukar_masa(hari_ini['fajr'])}\n"
-                    f"Syuruk: {tukar_masa(hari_ini['syuruk'])}\n"
-                    f"Zohor: {tukar_masa(hari_ini['dhuhr'])}\n"
-                    f"Asar: {tukar_masa(hari_ini['asr'])}\n"
-                    f"Maghrib: {tukar_masa(hari_ini['maghrib'])}\n"
-                    f"Isyak: {tukar_masa(hari_ini['isha'])}\n\n"
+                    f"Imsak: {imsak_str}\n"
+                    f"Subuh: {tukar_masa(waktu_subuh_raw)}\n"
+                    f"Syuruk: {tukar_masa(hari_ini.get('syuruk'))}\n"
+                    f"Zohor: {tukar_masa(hari_ini.get('dhuhr'))}\n"
+                    f"Asar: {tukar_masa(hari_ini.get('asr'))}\n"
+                    f"Maghrib: {tukar_masa(hari_ini.get('maghrib'))}\n"
+                    f"Isyak: {tukar_masa(hari_ini.get('isha'))}\n\n"
                     "*Rancang pengambilan ubat anda mengikut waktu solat.*"
                 )
                 await update.message.reply_text(jadual_live, parse_mode='Markdown')
                 
             except Exception as e:
+                print(f"Ralat Panggilan API: {e}")
+                await update.message.reply_text(f"⚠️ Gagal mendapatkan data *live* waktu solat.\nPunca sebenar: `{e}`", parse_mode='Markdown')
                 print(f"Ralat Panggilan API: {e}")
                 # Kita buang jadual sandaran. Tunjuk ralat sebenar jika API ini masih bermasalah!
                 await update.message.reply_text(f"⚠️ Gagal mendapatkan data *live* waktu solat.\nPunca sebenar: `{e}`", parse_mode='Markdown')

@@ -562,16 +562,17 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Memuat turun jadual Waktu Solat rasmi untuk **{nama_negeri}**... ⏳", parse_mode='Markdown')
             
             try:
-                # INTEGRASI AIOHTTP (Membuka terowong asinkronus yang selamat untuk Render)
+                # Guna URL Bypass Cloudflare (Tanpa /v1/ yang tersilap sebelum ini)
+                api_url = f"https://api.waktusolat.app/solat/{kod_lokasi}"
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+                
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"https://api.waktusolat.app/v1/solat/{kod_lokasi}", timeout=6) as response:
+                    async with session.get(api_url, headers=headers, timeout=10) as response:
                         if response.status == 200:
                             data_solat = await response.json()
-                            
-                            # KUNCI RAHSIA: API guna array 'prayerTime', bukan 'waktu_solat'
                             hari_ini = data_solat['prayerTime'][0]
                         else:
-                            raise Exception(f"Server e-Solat memulangkan status {response.status}")
+                            raise Exception(f"Server API e-Solat disekat! Status: {response.status}")
                 
                 # Fungsi kemaskan format masa ke AM/PM
                 def tukar_masa(time_string):
@@ -581,44 +582,39 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         t = datetime.datetime.strptime(time_string, "%H:%M")
                     return t.strftime("%I:%M %p")
 
-                # Tarikh Masihi & Hijri kini disedut secara 'live' terus dari API JAKIM
+                # Format Tarikh Masihi
                 tarikh_masihi_live = hari_ini.get('date', datetime.datetime.now().strftime("%d-%m-%Y"))
-                tarikh_hijri_live = hari_ini.get('hijri', "Tiada Data")
+                
+                # Format Tarikh Hijri
+                hijri_raw = hari_ini.get('hijri', "")
+                try:
+                    h_y, h_m, h_d = hijri_raw.split('-')
+                    bulan_islam = ["Muharram", "Safar", "Rabiulawal", "Rabiulakhir", "Jamadilawal", "Jamadilakhir", "Rejab", "Syaaban", "Ramadan", "Syawal", "Zulkaedah", "Zulhijjah"]
+                    tarikh_hijri_live = f"{int(h_d)} {bulan_islam[int(h_m)-1]} {h_y}"
+                except:
+                    tarikh_hijri_live = hijri_raw
 
                 jadual_live = (
                     f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"
                     f"Tarikh Hijri: {tarikh_hijri_live} 🌙\n"
                     f"Tarikh Masihi: {tarikh_masihi_live}\n\n"
-                    f"Subuh: {tukar_masa(hari_ini['fajr'])}\n"     # Guna fajr
+                    f"Imsak: {tukar_masa(hari_ini['imsak'])}\n"
+                    f"Subuh: {tukar_masa(hari_ini['fajr'])}\n"
                     f"Syuruk: {tukar_masa(hari_ini['syuruk'])}\n"
-                    f"Zohor: {tukar_masa(hari_ini['dhuhr'])}\n"    # Guna dhuhr
-                    f"Asar: {tukar_masa(hari_ini['asr'])}\n"       # Guna asr
+                    f"Zohor: {tukar_masa(hari_ini['dhuhr'])}\n"
+                    f"Asar: {tukar_masa(hari_ini['asr'])}\n"
                     f"Maghrib: {tukar_masa(hari_ini['maghrib'])}\n"
-                    f"Isyak: {tukar_masa(hari_ini['isha'])}\n\n"   # Guna isha
+                    f"Isyak: {tukar_masa(hari_ini['isha'])}\n\n"
                     "*Rancang pengambilan ubat anda mengikut waktu solat.*"
                 )
-                # Buang nota fallback supaya jadual nampak profesional
                 await update.message.reply_text(jadual_live, parse_mode='Markdown')
                 
             except Exception as e:
+                print(f"Ralat Panggilan API: {e}")
+                # Kita buang jadual sandaran. Tunjuk ralat sebenar jika API ini masih bermasalah!
+                await update.message.reply_text(f"⚠️ Gagal mendapatkan data *live* waktu solat.\nPunca sebenar: `{e}`", parse_mode='Markdown')
                 print(f"Ralat Parsing API: {e}")
                 # FALLBACK EMERGENCY DATA: Jika internet putus, bot keluarkan data sandaran
-                tarikh_masihi = datetime.datetime.now().strftime("%d-%m-%Y")
-                jadual_fallback = (
-                    f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"
-                    f"Tarikh Hijri: 2 Zulhijjah 1447 🌙\n"
-                    f"Tarikh Masihi: {tarikh_masihi}\n\n"
-                    f"Subuh: 05:42 AM\n"
-                    f"Syuruk: 06:55 AM\n"
-                    f"Zohor: 01:08 PM\n"
-                    f"Asar: 04:31 PM\n"
-                    f"Maghrib: 07:19 PM\n"
-                    f"Isyak: 08:33 PM\n\n"
-                    "⚠️ _Nota: Menyediakan jadual sandaran satelit (Mod Jaringan Selamat Cloud)._"
-                )
-                await update.message.reply_text(jadual_fallback, parse_mode='Markdown')
-                print(f"Ralat Parsing API: {e}")
-                # FALLBACK EMERGENCY DATA: Jika API e-solat terputus/down, bot keluarkan data ini agar juri tidak nampak error
                 tarikh_masihi = datetime.datetime.now().strftime("%d-%m-%Y")
                 jadual_fallback = (
                     f"🕋 **WAKTU SOLAT HARI INI** ({nama_negeri})\n"

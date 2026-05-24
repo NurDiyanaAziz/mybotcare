@@ -830,6 +830,8 @@ if __name__ == '__main__':
         bot_app.add_handler(CallbackQueryHandler(butang_ditekan))
         
         print("SmartCare Bot is alive and listening to your messages! 🚀")
+
+        application.run_polling(drop_pending_updates=True)
         
         # 3. JALANKAN BOT MENGGUNAKAN ENJIN PEMANDU ASYNC YANG BETUL
         # Ciri 'close_loop=False' sangat penting supaya ia tidak menutup event loop aiohttp kita!

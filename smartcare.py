@@ -804,13 +804,18 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------------------------------------------------
 
 if __name__ == '__main__':
+    print("1. Skrip Python mula berjalan...", flush=True)
+
     load_data()
+
+    print("2. Proses load_data() selesai!", flush=True)
     
     # 1. SETUP DUMMY WEB SERVER UNTUK RENDER FREE TIER
     async def handle_render_ping(request):
         return web.Response(text="SmartCare is running smoothly!")
 
     async def main():
+        print("3. Membina Web Server...", flush=True)
         server_app = web.Application()
         server_app.router.add_route('*', '/', handle_render_ping)
         
@@ -819,18 +824,18 @@ if __name__ == '__main__':
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
-        print(f"Async Dummy Server hidup pada port {port}")
+        print(f"Async Dummy Server hidup pada port {port}", flush=True)
 
         # 2. INSIALISASI TELEGRAM BOT GRED ASYNC
-        print("Membina aplikasi SmartCare AI...")
+        print("Membina aplikasi SmartCare AI...", flush=True)
         bot_app = ApplicationBuilder().token(TOKEN).build()
         
         bot_app.add_handler(CommandHandler("start", start))
         bot_app.add_handler(MessageHandler((filters.TEXT | filters.LOCATION) & (~filters.COMMAND), handle_input))
         bot_app.add_handler(CallbackQueryHandler(butang_ditekan))
-        
-        print("SmartCare Bot is alive and listening to your messages! 🚀")
-        
+
+        print("SmartCare Bot is alive and listening to your messages! 🚀", flush=True)
+
         # 3. JALANKAN BOT MENGGUNAKAN ENJIN PEMANDU ASYNC YANG BETUL
         # Ciri 'close_loop=False' sangat penting supaya ia tidak menutup event loop aiohttp kita!
         async with bot_app:

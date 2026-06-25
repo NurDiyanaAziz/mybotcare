@@ -10,7 +10,7 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKey
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 
 # 1. SETUP: Enter your Token from BotFather here
-TOKEN = "8661491487:AAFv2X_0bQ6qBtWPftSshivvaNKhsOIX4xw"
+TOKEN = os.environ.get("TOKEN")
 
 # Bot's memory to store states and data
 status_ubat = {}

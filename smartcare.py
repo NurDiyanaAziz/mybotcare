@@ -803,18 +803,10 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 6. START THE BOT
 # ---------------------------------------------------------
 
-if __name__ == '__main__':
-    print("1. Skrip Python mula berjalan...", flush=True)
-
-    load_data()
-
-    print("2. Proses load_data() selesai!", flush=True)
-    
-    # 1. SETUP DUMMY WEB SERVER UNTUK RENDER FREE TIER
-    async def handle_render_ping(request):
+async def handle_render_ping(request):
         return web.Response(text="SmartCare is running smoothly!")
 
-    async def main():
+async def main():
         print("3. Membina Web Server...", flush=True)
         server_app = web.Application()
         server_app.router.add_route('*', '/', handle_render_ping)
@@ -825,6 +817,10 @@ if __name__ == '__main__':
         site = web.TCPSite(runner, "0.0.0.0", port)
         await site.start()
         print(f"Async Dummy Server hidup pada port {port}", flush=True)
+
+        print("1. Skrip Python mula berjalan...", flush=True)
+        load_data()
+        print("2. Proses load_data() selesai!", flush=True)
 
         # 2. INSIALISASI TELEGRAM BOT GRED ASYNC
         print("Membina aplikasi SmartCare AI...", flush=True)
@@ -850,9 +846,6 @@ if __name__ == '__main__':
             # Ini bertindak sebagai pengganti 'while True' yang jauh lebih stabil
             from telegram.ext import Updater
             await asyncio.Event().wait()
-
-    # Cetus event loop utama
-    try:
+            
+if __name__ == '__main__':
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("Bot dimatikan secara selamat.")

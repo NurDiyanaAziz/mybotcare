@@ -5,6 +5,7 @@ import requests
 import datetime
 import asyncio
 import aiohttp
+import pytz
 from aiohttp import web
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, CallbackQueryHandler
@@ -244,7 +245,26 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.job_queue.run_once(stage_2_alarm, 15, chat_id=chat_id, data=time_input)
             context.job_queue.run_once(stage_3_check, 25, chat_id=chat_id, data=time_input)
         else:
-            await update.message.reply_text(f"✅ Berjaya! **{med_name}** pada jam **{time_input}** telah disimpan dalam jadual.", parse_mode='Markdown')
+            # --- MULA: KOD PENGGERA HARIAN (DENGAN ZON WAKTU MALAYSIA) ---
+            malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+            
+            # Pecahkan "16:30" kepada jam=16, minit=30
+            jam, minit = map(int, time_input.split(':'))
+            
+            # Bina objek masa berserta zon waktu Malaysia
+            masa_jadual = datetime.time(hour=jam, minute=minit, tzinfo=malaysia_tz)
+            
+            # Arahkan bot untuk hantar penggera tepat pada waktu ini setiap hari
+            context.job_queue.run_daily(
+                stage_2_alarm, 
+                time=masa_jadual, 
+                chat_id=chat_id, 
+                data=time_input,
+                name=f"{chat_id}_{time_input}"
+            )
+            # --- TAMAT: KOD PENGGERA HARIAN ---
+
+            await update.message.reply_text(f"✅ Berjaya! **{med_name}** pada jam **{time_input}** telah disimpan dalam jadual dan penggera diaktifkan.", parse_mode='Markdown')
         
         reply_markup = ReplyKeyboardMarkup(MEDICINE_MENU, resize_keyboard=True)
         await update.message.reply_text("Kembali ke menu jadual ubat.", reply_markup=reply_markup)
@@ -846,6 +866,6 @@ async def main():
             # Ini bertindak sebagai pengganti 'while True' yang jauh lebih stabil
             from telegram.ext import Updater
             await asyncio.Event().wait()
-            
+
 if __name__ == '__main__':
         asyncio.run(main())

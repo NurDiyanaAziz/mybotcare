@@ -216,55 +216,59 @@ async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_state.get(chat_id) == "WAITING_FOR_NAME":
         temp_medicine[chat_id] = {"name": user_choice}
         user_state[chat_id] = "WAITING_FOR_TIME"
+
+        # --- BUTANG PILIHAN WAKTU 12-JAM (TANPA DEMO) ---
+        PILIHAN_WAKTU = [
+            ["08:00 AM", "01:00 PM"],   # Pagi & Tengahari
+            ["06:00 PM", "08:00 PM"],   # Petang & Malam
+            ["10:00 PM"]                # Sebelum Tidur
+        ]
+        susunan_butang = ReplyKeyboardMarkup(PILIHAN_WAKTU, resize_keyboard=True, one_time_keyboard=True)
+
         await update.message.reply_text(
-            f"Baik, nama ubat disimpan: **{user_choice}**.\n\nSila taip waktu makan ubat (Contoh: 14:00).\n*(Atau taip 'demo' untuk mulakan ujian pantas 5 saat)*",
-            parse_mode='Markdown'
+            f"Baik, nama ubat disimpan: **{user_choice}**.\n\nSila **KLIK** butang waktu di bawah:",
+            parse_mode='Markdown',
+            reply_markup=susunan_butang
         )
         return
 
     elif user_state.get(chat_id) == "WAITING_FOR_TIME":
         med_name = temp_medicine[chat_id]["name"]
-        time_input = user_choice
-        user_state[chat_id] = None
+        time_input = user_choice.strip().upper() # Jadikan huruf besar (pm jadi PM)
+            
+        # 1. BACA MASA 12-JAM DARI BUTANG
+        try:
+            t_obj = datetime.datetime.strptime(time_input, "%I:%M %p")
+        except ValueError:
+            await update.message.reply_text("⚠️ Format masa tidak sah. Sila KLIK butang yang disediakan (Contoh: 01:00 PM).")
+            return
+
+        jam = t_obj.hour
+        minit = t_obj.minute
+        masa_simpan = t_obj.strftime("%I:%M %p") # Pastikan ia sentiasa dieja cantik (01:00 PM)
         
+        # 2. SIMPAN KE FAIL JSON
         if chat_id not in jadual_ubat:
             jadual_ubat[chat_id] = []
-
-        if time_input.isdigit():
-            if len(time_input) == 1:
-                time_input = f"0{time_input}:00"
-            elif len(time_input) == 2:
-                time_input = f"{time_input}:00"
             
-        jadual_ubat[chat_id].append({"name": med_name, "time": time_input})
+        jadual_ubat[chat_id].append({"name": med_name, "time": masa_simpan})
         save_data()
-
-        if time_input.lower() == "demo":
-            await update.message.reply_text(f"✅ Ubat **{med_name}** berjaya ditambah! Mod Demo diaktifkan.", parse_mode='Markdown')
-            context.job_queue.run_once(stage_1_reminder, 5, chat_id=chat_id, data=time_input)
-            context.job_queue.run_once(stage_2_alarm, 15, chat_id=chat_id, data=time_input)
-            context.job_queue.run_once(stage_3_check, 25, chat_id=chat_id, data=time_input)
-        else:
-            # --- MULA: KOD PENGGERA HARIAN (DENGAN ZON WAKTU MALAYSIA) ---
-            malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
-            
-            # Pecahkan "16:30" kepada jam=16, minit=30
-            jam, minit = map(int, time_input.split(':'))
-            
-            # Bina objek masa berserta zon waktu Malaysia
-            masa_jadual = datetime.time(hour=jam, minute=minit, tzinfo=malaysia_tz)
-            
-            # Arahkan bot untuk hantar penggera tepat pada waktu ini setiap hari
-            context.job_queue.run_daily(
-                stage_2_alarm, 
-                time=masa_jadual, 
-                chat_id=chat_id, 
-                data=time_input,
-                name=f"{chat_id}_{time_input}"
-            )
-            # --- TAMAT: KOD PENGGERA HARIAN ---
-
-            await update.message.reply_text(f"✅ Berjaya! **{med_name}** pada jam **{time_input}** telah disimpan dalam jadual dan penggera diaktifkan.", parse_mode='Markdown')
+        user_state[chat_id] = None
+        
+        # 3. AKTIFKAN PENGGERA JOBQUEUE
+        malaysia_tz = pytz.timezone('Asia/Kuala_Lumpur')
+        masa_jadual = datetime.time(hour=jam, minute=minit, tzinfo=malaysia_tz)
+        
+        context.job_queue.run_daily(
+            stage_2_alarm, 
+            time=masa_jadual, 
+            chat_id=chat_id, 
+            data=masa_simpan,
+            name=f"{chat_id}_{masa_simpan}"
+        )
+        
+        # 4. HANTAR MESEJ BERJAYA & KEMBALI KE MENU (Dua Mesej Berasingan)
+        await update.message.reply_text(f"✅ Berjaya! **{med_name}** pada jam **{masa_simpan}** telah disimpan dan penggera diaktifkan.", parse_mode='Markdown')
         
         reply_markup = ReplyKeyboardMarkup(MEDICINE_MENU, resize_keyboard=True)
         await update.message.reply_text("Kembali ke menu jadual ubat.", reply_markup=reply_markup)
